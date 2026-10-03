@@ -228,7 +228,7 @@ export default function App() {
     address: '',
     city: '',
     zip: '',
-    paymentMethod: 'card'
+    paymentMethod: 'online'
   });
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -271,6 +271,7 @@ export default function App() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const finalTotalAmount = cartTotal * 1.08;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const toggleWishlist = (productId, e) => {
@@ -354,7 +355,52 @@ export default function App() {
       const updatedProducts = products.filter(p => p.id !== id);
       setProducts(updatedProducts);
       localStorage.setItem('luxemarket_products', JSON.stringify(updatedProducts));
-      showToast("🗑️ Product deleted successfully");
+      showToast("🗑 Product deleted successfully");
+    }
+  };
+
+  // CHECKOUT HANDLER (Razorpay / COD)
+  const handleCheckoutSubmit = (e) => {
+    e.preventDefault();
+
+    if (checkoutForm.paymentMethod === 'cod') {
+      alert("Order placed successfully with Cash on Delivery!");
+      setCart([]);
+      setCurrentPage('success');
+    } else {
+      // Razorpay Online Payment Flow
+      try {
+        const options = {
+          key: "rzp_test_TjPdpd5VIVXKJK", 
+          amount: Math.round(finalTotalAmount * 100),
+          currency: "INR",
+          name: "LuxeMarket",
+          description: "Purchase Payment",
+          handler: function (response) {
+            alert("Payment Successful! Payment ID: " + response.razorpay_payment_id);
+            setCart([]);
+            setCurrentPage('success');
+          },
+          prefill: {
+            name: checkoutForm.fullName || (user ? user.name : "Customer"),
+            email: checkoutForm.email || (user ? user.email : "customer@example.com"),
+            contact: "9999999999"
+          },
+          theme: {
+            color: "#4f46e5"
+          }
+        };
+
+        if (window.Razorpay) {
+          const paymentWindow = new window.Razorpay(options);
+          paymentWindow.open();
+        } else {
+          alert("Razorpay SDK is not loaded. Please include the script in index.html or use COD.");
+        }
+      } catch (error) {
+        console.error("Payment failed:", error);
+        alert("Something went wrong with the payment.");
+      }
     }
   };
 
@@ -1125,7 +1171,7 @@ export default function App() {
                     <div className="flex justify-between"><span>Shipping</span><span className="font-black text-emerald-400">FREE</span></div>
                     <div className="flex justify-between"><span>Estimated Tax</span><span className="font-black text-white">${(cartTotal * 0.08).toFixed(2)}</span></div>
                   </div>
-                  <div className="flex justify-between text-xl font-black text-white"><span>Total</span><span>${(cartTotal * 1.08).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xl font-black text-white"><span>Total</span><span>${finalTotalAmount.toFixed(2)}</span></div>
                   <button onClick={() => setCurrentPage('checkout')} className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black py-5 rounded-3xl shadow-2xl shadow-indigo-600/40 transition-all flex items-center justify-center gap-3 text-base">
                     Proceed to Checkout <ArrowRight className="w-5 h-5" />
                   </button>
@@ -1135,11 +1181,18 @@ export default function App() {
           </div>
         )}
 
-        {/* CHECKOUT PAGE */}
+        {/* CHECKOUT PAGE (WITH RAZORPAY AND COD) */}
         {currentPage === 'checkout' && (
           <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
+            <button 
+              onClick={() => setCurrentPage('cart')}
+              className="text-sm font-black text-slate-400 hover:text-indigo-400 flex items-center gap-2 transition-colors"
+            >
+              ← Back to Cart
+            </button>
             <h1 className="text-3xl font-black tracking-tight text-white">Secure Checkout</h1>
-            <form onSubmit={(e) => { e.preventDefault(); setCurrentPage('success'); setCart([]); }} className="bg-slate-900/80 backdrop-blur-xl p-8 sm:p-10 rounded-[36px] border border-slate-800 shadow-2xl space-y-8">
+            
+            <form onSubmit={handleCheckoutSubmit} className="bg-slate-900/80 backdrop-blur-xl p-8 sm:p-10 rounded-[36px] border border-slate-800 shadow-2xl space-y-8">
               <h2 className="text-xl font-black text-white border-b border-slate-800 pb-5">Shipping Information</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div><label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Full Name</label><input required type="text" value={checkoutForm.fullName} onChange={e => setCheckoutForm({...checkoutForm, fullName: e.target.value})} placeholder="John Doe" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3.5 text-sm text-white focus:border-indigo-500 outline-none shadow-inner" /></div>
@@ -1150,19 +1203,19 @@ export default function App() {
               </div>
 
               <h2 className="text-xl font-black text-white border-b border-slate-800 pt-4 pb-5">Payment Method</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <label className={`border p-5 rounded-3xl flex items-center gap-4 cursor-pointer transition-all ${checkoutForm.paymentMethod === 'card' ? 'border-indigo-500 bg-indigo-600/10 shadow-lg shadow-indigo-600/10' : 'border-slate-800 bg-slate-950 text-slate-400'}`}>
-                  <input type="radio" name="payment" defaultChecked onChange={() => setCheckoutForm({...checkoutForm, paymentMethod: 'card'})} />
-                  <span className="font-black text-sm text-white">Credit / Debit Card</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className={`border p-5 rounded-3xl flex items-center gap-4 cursor-pointer transition-all ${checkoutForm.paymentMethod === 'online' ? 'border-indigo-500 bg-indigo-600/10 shadow-lg shadow-indigo-600/10' : 'border-slate-800 bg-slate-950 text-slate-400'}`}>
+                  <input type="radio" name="payment" defaultChecked onChange={() => setCheckoutForm({...checkoutForm, paymentMethod: 'online'})} />
+                  <span className="font-black text-sm text-white">Pay Online (Razorpay / UPI / Card)</span>
                 </label>
                 <label className={`border p-5 rounded-3xl flex items-center gap-4 cursor-pointer transition-all ${checkoutForm.paymentMethod === 'cod' ? 'border-indigo-500 bg-indigo-600/10 shadow-lg shadow-indigo-600/10' : 'border-slate-800 bg-slate-950 text-slate-400'}`}>
                   <input type="radio" name="payment" onChange={() => setCheckoutForm({...checkoutForm, paymentMethod: 'cod'})} />
-                  <span className="font-black text-sm text-white">Cash on Delivery</span>
+                  <span className="font-black text-sm text-white">Cash on Delivery (COD)</span>
                 </label>
               </div>
 
               <button type="submit" className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black py-5 rounded-3xl shadow-2xl shadow-indigo-600/40 transition-all text-base mt-6">
-                Place Order (${(cartTotal * 1.08).toFixed(2)})
+                {checkoutForm.paymentMethod === 'online' ? `Pay Online & Place Order ($${finalTotalAmount.toFixed(2)})` : `Place Order (COD) ($${finalTotalAmount.toFixed(2)})`}
               </button>
             </form>
           </div>
